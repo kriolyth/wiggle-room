@@ -1,0 +1,33 @@
+{
+  "name": "wiggle-room-html",
+  "version": "0.1.0",
+  "description": "Pixi JS wiggly thingy",
+  "main": "index.js",
+  "scripts": {
+    "build": "webpack --config webpack.config.js",
+    "start": "webpack serve --open"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kriolyth/wiggle-room.git"
+  },
+  "keywords": [
+    "webassembly",
+    "wasm",
+    "rust",
+    "webpack"
+  ],
+  "author": "Krio Lyth <kriolyth@gmail.com>",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "pixi.js": "^6.0.1"
+  },
+  "devDependencies": {
+    "copy-webpack-plugin": "^6.3.0",
+    "ts-loader": "^8.0.11",
+    "typescript": "^4.0.5",
+    "webpack": "^5.4.0",
+    "webpack-cli": "^4.6.0",
+    "webpack-dev-server": "^3.11.2"
+  }
+}
