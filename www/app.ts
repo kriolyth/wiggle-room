@@ -15,23 +15,15 @@
 */
 
 import config from './config';
+import {Spline, Point} from './spline';
 import * as PIXI from 'pixi.js';
-
-class Point {
-    x: number;
-    y: number;
-
-    constructor(x: number, y: number) {
-        this.x = x;
-        this.y = y;
-    }
-}
 
 /// app class
 class App {
     pixi: PIXI.Application;
     lineShader: PIXI.Shader;
     linePoints: Point[];
+    spline: Spline;
 
     lastFrameTime: number;
     simulationTime: number;
@@ -52,7 +44,7 @@ class App {
         this.lastFrameTime = 0;
         this.simulationTime = 0;
 
-        const frag_bg_colour = 'vec3(0.1835)'
+        const frag_line_bg_colour = 'vec3(0.1835)'
         const uniforms = {
             fCycle: 0.
         }
@@ -60,39 +52,49 @@ class App {
 
             precision mediump float;
             attribute vec2 aVertexPosition;
-            attribute vec2 aUv;
+            attribute vec2 aUv; // .x = position on the subspline, .y = position on the whole line
         
             uniform mat3 translationMatrix;
             uniform mat3 projectionMatrix;
 
-            varying vec3 vColor;
+            varying vec2 uv;
         
             void main() {
                 gl_Position = vec4((projectionMatrix * translationMatrix * vec3(aVertexPosition, 1.0)).xy, 0.0, 1.0);
-                vColor = vec3(aUv.x);
+                uv = aUv;
             }`,
             `
             precision mediump float;
-            varying vec3 vColor;
+            varying vec2 uv;
 
             uniform float fCycle;
         
             void main() {
-                vec3 cl = mix(vec3(1.0, 0., 0.), vec3(1.0, 1.0, 0.), vColor.x - fCycle * 2. + 1.);
-                gl_FragColor = vec4(mix(cl, ${frag_bg_colour}, smoothstep(0.4, 0.5, abs(0.5 - vColor.x + fCycle * 2. - 1.))), 1.0);
+                // vec3 cl = mix(vec3(1.0, 0., 0.), vec3(1.0, 1.0, 0.), vColor.x - fCycle * 2. + 1.);
+                // set colour as function of position on the line
+                vec3 cl = mix(vec3(1.0, 0., 0.), vec3(1.0, 1.0, 0.), uv.y);
+                
+                // shade ends by position on chunk ends
+                gl_FragColor = vec4(mix(
+                    cl, 
+                    ${frag_line_bg_colour}, 
+                    smoothstep(0.45, 0.5, abs(0.5 - uv.x))), 
+                    1.0);
             }
         
         `, uniforms);
 
         this.linePoints = [
-            new Point(20, 120), new Point(50, 120), 
-            new Point(80, 140), new Point(110, 150), 
-            new Point(140, 180), new Point(170, 150), 
-            new Point(200, 160), new Point(230, 130), 
-            new Point(260, 110), new Point(290, 90), 
-            new Point(320, 70), new Point(350, 100), 
-            new Point(380, 110), new Point(410, 120), 
-        ]
+            new Point(20, 120, 0), new Point(50, 120, 1),
+            new Point(80, 140, 2), new Point(110, 150, 3), 
+            new Point(140, 180, 4), new Point(170, 150, 5), 
+            new Point(200, 160, 6), new Point(230, 130, 7), 
+            new Point(260, 110, 8), new Point(290, 90, 9), 
+            new Point(320, 70, 10), new Point(350, 100, 11), 
+            new Point(380, 110, 12), new Point(410, 120, 13), 
+        ].map(pt => new Point(pt.x * 4, pt.y, pt.t/13));
+        this.spline = new Spline(this.linePoints)
+        console.log(this.spline.kx, this.spline.ky)
     }
 
     /// load resources
@@ -128,16 +130,20 @@ class App {
             uvs = [0, 0, 0, 1, 1, 0, 1, 1]
             indices = [0, 1, 2, 3]
         } else {
+            // Build a uniform-width "tunnel" along the line
+            // Find tangents at segment points
             const tangents = pts.map((pt, index) => {
                 if (index == 0) return Math.atan2(pts[index + 1].y - pt.y, pts[index + 1].x - pt.x)
                 else if (index == pts.length - 1) return Math.atan2(pt.y - pts[index - 1].y, pt.x - pts[index - 1].x)
                 // average the two -- better to use weighted average by length though
                 return 0.5 * (Math.atan2(pts[index + 1].y - pt.y, pts[index + 1].x - pt.x) + Math.atan2(pt.y - pts[index - 1].y, pt.x - pts[index - 1].x))
             })
+            // create tunnel vertices (a pair of them per every line point)
             this.lineSegment(pts, tangents, verts)
-            pts.forEach((_, index) => {
+            pts.forEach((pt, index) => {
                 const uv_x = index / (pts.length - 1)
-                uvs.push(uv_x, 0.0, uv_x, 1.0)
+                const uv_y = pt.t / this.spline.time
+                uvs.push(uv_x, uv_y, uv_x, uv_y)
                 indices.push(index * 2, index * 2 + 1)
             })
 
@@ -156,6 +162,9 @@ class App {
     /// field setup
     setup() {
 
+        const sub_interval = this.spline.subInterval(0.0, 1.0)
+        console.log(sub_interval)
+
         // some basic colours
 
         // field ui
@@ -169,17 +178,21 @@ class App {
     loop(delta: number) {
         if (this.ready && !this.paused) {
             this.simulationTime += delta / 60.;
+            const fCycle = this.simulationTime / config.field.cycleLength - Math.trunc(this.simulationTime / config.field.cycleLength)
             // clear everything
             this.pixi.stage.removeChildren()
 
-            for (let tick = 0; tick < config.field.ticksPerCall; tick++) {
-                // update movements
-            }
+            const line_fraction = this.spline.time / 3;
+            const interval_start = Math.max(0, fCycle * (1 + line_fraction) - line_fraction)
+            const interval_end = Math.min(1., fCycle * (1 + line_fraction))
+            const sub_interval = this.spline.subInterval(
+                Math.max(0., interval_start),
+                Math.max(0., interval_end - interval_start))
 
-            const line_geom = this.pointsToMeshStrip(this.linePoints)
-            const line_mesh = new PIXI.Mesh(line_geom, this.lineShader, PIXI.State.for2d(), PIXI.DRAW_MODES.TRIANGLE_STRIP)
-            line_mesh.shader.uniforms.fCycle = this.simulationTime / 3. - Math.trunc(this.simulationTime / 3.);
-            this.pixi.stage.addChild(line_mesh)
+            const spline_geom = this.pointsToMeshStrip(sub_interval)
+            const spline_mesh = new PIXI.Mesh(spline_geom, this.lineShader, PIXI.State.for2d(), PIXI.DRAW_MODES.TRIANGLE_STRIP)
+            spline_mesh.shader.uniforms.fCycle = fCycle
+            this.pixi.stage.addChild(spline_mesh)
         }
 
         // draw ui

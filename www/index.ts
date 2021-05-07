@@ -20,12 +20,6 @@ import config from './config'
 // bind app to DOM
 function bindApp() {
     const view = document.getElementById("view") ?? document.body
-    if (screen.width < config.display.width || screen.height < config.display.height) {
-        const dim = Math.min(screen.width - 24, screen.height - 60)
-        console.log(dim)
-        config.display.width = dim
-        config.display.height = dim
-    }
     const app = createApp(view)
     app.load()
 
