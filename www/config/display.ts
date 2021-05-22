@@ -1,3 +1,3 @@
 export default {
-    maxfps: 60      // limit fps
+    maxfps: 0      // limit fps
 }

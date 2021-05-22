@@ -108,7 +108,7 @@ class Spline {
         const t_last = this.points[this.points.length - 1].t
 
         // interpolate between t_offset and t_offset + t_length
-        const NUM_STEPS = 20;
+        const NUM_STEPS = 80;
         // clamp t_offset so that interpolated region is range
         t_offset = Math.max(t_first, Math.min(t_last - t_length, t_offset))
 

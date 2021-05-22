@@ -33,27 +33,29 @@ function bindApp() {
             pp.innerHTML = 'Play'
         }
     })
-    document.getElementById("play-pause")?.addEventListener("click", () => {
-        const pp = document.getElementById("play-pause");
-        if (!pp)
-            return;
-        if (app.isReady() && app.isPaused()) {
-            app.resume()
-            pp.innerHTML = 'Pause'
+
+    document.getElementById("view")?.addEventListener("mousedown", (ev: MouseEvent) => {
+        if (!app.isReady()) {
+            app.startRender()
         }
-        else if (app.isReady() && !app.isPaused()) {
-            app.pause()
-            pp.innerHTML = 'Play'
-        } else if (!app.isReady()) {
-            app.start()
-            pp.innerHTML = 'Pause'
+        if (ev.buttons & 1) {
+            // drawing mode: mouse button pressed
+            app.beginLine()
+            app.addPointToLine(ev.offsetX, ev.offsetY)
         }
     })
+
     document.getElementById("view")?.addEventListener("mousemove", (ev: MouseEvent) => {
-        if (!app.isReady() && (ev.buttons & 1)) {
-            // drawing mode: not running, mouse button pressed
-            // app.addCustomParticle(ev.offsetX, ev.offsetY)
-            app.startRender()
+        if (ev.buttons & 1) {
+            // drawing mode
+            app.addPointToLine(ev.offsetX, ev.offsetY)
+        }
+    })
+
+    document.getElementById("view")?.addEventListener("mouseup", (ev: MouseEvent) => {
+        if (ev.button == 0) {
+            // left button depressed - end the line
+            app.endLine()
         }
     })
     document.getElementById("view")?.addEventListener("touchmove", (ev: TouchEvent) => {

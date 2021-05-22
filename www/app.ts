@@ -162,9 +162,6 @@ class App {
     /// field setup
     setup() {
 
-        const sub_interval = this.spline.subInterval(0.0, 1.0)
-        console.log(sub_interval)
-
         // some basic colours
 
         // field ui
@@ -180,7 +177,10 @@ class App {
             this.simulationTime += delta / 60.;
             const fCycle = this.simulationTime / config.field.cycleLength - Math.trunc(this.simulationTime / config.field.cycleLength)
             // clear everything
-            this.pixi.stage.removeChildren()
+            const previous_meshes = this.pixi.stage.removeChildren()
+            for (let mesh of previous_meshes) {
+                mesh.destroy()
+            }
 
             const line_fraction = this.spline.time / 3;
             const interval_start = Math.max(0, fCycle * (1 + line_fraction) - line_fraction)
@@ -230,6 +230,30 @@ class App {
     }
     stopRender() {
         this.pixi.stop()
+    }
+
+    /// Start entering new line
+    beginLine() {
+        this.linePoints = []
+    }
+
+    /// add a point to current line
+    addPointToLine(x: number, y: number) {
+
+        if (this.linePoints.length == 0 || this.simulationTime - this.linePoints[this.linePoints.length-1].t > 0.03)
+            this.linePoints.push(new Point(x, y, this.simulationTime))
+        if (this.linePoints.length > 3)
+            this.spline = new Spline(this.linePoints)
+    }
+
+    /// complete the line
+    endLine() {
+        // map all time to zero
+        const startTime = this.linePoints[0].t
+        const totalTime = this.linePoints[this.linePoints.length-1].t - startTime
+        this.linePoints.forEach(pt => pt.t = (pt.t - startTime) / totalTime)
+        console.log(this.linePoints)
+        this.spline = new Spline(this.linePoints)
     }
 }
 
