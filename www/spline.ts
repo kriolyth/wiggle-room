@@ -58,7 +58,7 @@ class Spline {
     time: number;
 
     constructor(pts: Point[]) {
-        this.points = pts.map(pt => new Point(pt.x, pt.y, pt.t - pts[0].t))
+        this.points = pts.map(pt => new Point(pt.x, pt.y, (pt.t - pts[0].t) / (pts[pts.length - 1].t - pts[0].t)))
         this.kx = Array(pts.length - 1);
         this.ky = Array(pts.length - 1);
         this.time = this.points[this.points.length - 1].t
@@ -108,7 +108,7 @@ class Spline {
         const t_last = this.points[this.points.length - 1].t
 
         // interpolate between t_offset and t_offset + t_length
-        const NUM_STEPS = 80;
+        const NUM_STEPS = 20 + this.points.length;
         // clamp t_offset so that interpolated region is range
         t_offset = Math.max(t_first, Math.min(t_last - t_length, t_offset))
 

@@ -15,15 +15,17 @@
 */
 
 import config from './config';
-import {Spline, Point} from './spline';
+import { Spline, Point } from './spline';
 import * as PIXI from 'pixi.js';
 
 /// app class
 class App {
     pixi: PIXI.Application;
     lineShader: PIXI.Shader;
-    linePoints: Point[];
     spline: Spline;
+    
+    inputLinePoints: Point[] = [];
+    inputSpline?: Spline;
 
     lastFrameTime: number;
     simulationTime: number;
@@ -75,25 +77,31 @@ class App {
                 vec3 cl = mix(vec3(1.0, 0., 0.), vec3(1.0, 1.0, 0.), uv.y);
                 
                 // shade ends by position on chunk ends
-                gl_FragColor = vec4(mix(
+                /* gl_FragColor = vec4(mix(
                     cl, 
                     ${frag_line_bg_colour}, 
                     smoothstep(0.45, 0.5, abs(0.5 - uv.x))), 
-                    1.0);
+                    1.0); */
+                gl_FragColor = vec4(cl, 1.0);
             }
         
         `, uniforms);
 
-        this.linePoints = [
-            new Point(20, 120, 0), new Point(50, 120, 1),
-            new Point(80, 140, 2), new Point(110, 150, 3), 
-            new Point(140, 180, 4), new Point(170, 150, 5), 
-            new Point(200, 160, 6), new Point(230, 130, 7), 
-            new Point(260, 110, 8), new Point(290, 90, 9), 
-            new Point(320, 70, 10), new Point(350, 100, 11), 
-            new Point(380, 110, 12), new Point(410, 120, 13), 
-        ].map(pt => new Point(pt.x * 4, pt.y, pt.t/13));
-        this.spline = new Spline(this.linePoints)
+        // const exampleLinePoints = [
+        //     new Point(20, 120, 0), new Point(50, 120, 1),
+        //     new Point(80, 140, 2), new Point(110, 150, 3),
+        //     new Point(140, 180, 4), new Point(170, 150, 5),
+        //     new Point(200, 160, 6), new Point(230, 130, 7),
+        //     new Point(260, 110, 8), new Point(290, 90, 9),
+        //     new Point(320, 70, 10), new Point(350, 100, 11),
+        //     new Point(380, 110, 12), new Point(410, 120, 13),
+        // ].map(pt => new Point(pt.x * 4, pt.y, pt.t / 13));
+        const exampleLinePoints = [
+            new Point(120, 120, 0), new Point(150, 119, 1.99),
+            new Point(149, 119, 1.995), new Point(152, 121, 1.999),
+            new Point(151, 119, 2.01), new Point(310, 120, 3),
+        ].map(pt => new Point(pt.x * 4, pt.y, pt.t));
+        this.spline = new Spline(exampleLinePoints)
         console.log(this.spline.kx, this.spline.ky)
     }
 
@@ -149,7 +157,7 @@ class App {
 
         }
 
-        
+
 
         const geom = new PIXI.Geometry()
         geom.addAttribute('aVertexPosition', verts)
@@ -234,26 +242,25 @@ class App {
 
     /// Start entering new line
     beginLine() {
-        this.linePoints = []
+        this.inputLinePoints = []
     }
 
     /// add a point to current line
     addPointToLine(x: number, y: number) {
 
-        if (this.linePoints.length == 0 || this.simulationTime - this.linePoints[this.linePoints.length-1].t > 0.03)
-            this.linePoints.push(new Point(x, y, this.simulationTime))
-        if (this.linePoints.length > 3)
-            this.spline = new Spline(this.linePoints)
+        // add points to line, but not too close in time
+        if (this.inputLinePoints.length == 0 || this.simulationTime - this.inputLinePoints[this.inputLinePoints.length - 1].t > 0.03)
+            this.inputLinePoints.push(new Point(x, y, this.simulationTime))
+        if (this.inputLinePoints.length > 3)
+            this.inputSpline = new Spline(this.inputLinePoints)
     }
 
     /// complete the line
     endLine() {
-        // map all time to zero
-        const startTime = this.linePoints[0].t
-        const totalTime = this.linePoints[this.linePoints.length-1].t - startTime
-        this.linePoints.forEach(pt => pt.t = (pt.t - startTime) / totalTime)
-        console.log(this.linePoints)
-        this.spline = new Spline(this.linePoints)
+        if (this.inputLinePoints.length > 3) {
+            this.spline = new Spline(this.inputLinePoints)
+            // console.log(this.inputLinePoints)
+        }
     }
 }
 

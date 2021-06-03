@@ -42,6 +42,7 @@ function bindApp() {
             // drawing mode: mouse button pressed
             app.beginLine()
             app.addPointToLine(ev.offsetX, ev.offsetY)
+            // console.log(ev)
         }
     })
 
@@ -49,6 +50,7 @@ function bindApp() {
         if (ev.buttons & 1) {
             // drawing mode
             app.addPointToLine(ev.offsetX, ev.offsetY)
+            // console.log(ev)
         }
     })
 
