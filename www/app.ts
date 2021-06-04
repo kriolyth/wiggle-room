@@ -111,7 +111,7 @@ class App {
     }
 
     lineSegment(ends: Point[], tangents: number[], verts: number[]) {
-        const width = 1.0;
+        const width = 2.0;
         ends.forEach((pt, index) => {
             const sink = Math.sin(-tangents[index])
             const cosk = Math.cos(-tangents[index])
@@ -247,10 +247,17 @@ class App {
 
     /// add a point to current line
     addPointToLine(x: number, y: number) {
-
+        const STEP = 0.03;
         // add points to line, but not too close in time
-        if (this.inputLinePoints.length == 0 || this.simulationTime - this.inputLinePoints[this.inputLinePoints.length - 1].t > 0.03)
+        if (this.inputLinePoints.length == 0 || this.simulationTime - this.inputLinePoints[this.inputLinePoints.length - 1].t > STEP) {
+            if (this.inputLinePoints.length) {
+                const lastPoint = this.inputLinePoints[this.inputLinePoints.length - 1]
+                // duplicate previous point if the pause was too long - this should cue interpolation
+                for (let t = lastPoint.t + STEP; t < this.simulationTime - STEP*2; t += STEP)
+                    this.inputLinePoints.push(new Point(lastPoint.x, lastPoint.y, t))
+            }
             this.inputLinePoints.push(new Point(x, y, this.simulationTime))
+        }
         if (this.inputLinePoints.length > 3)
             this.inputSpline = new Spline(this.inputLinePoints)
     }
