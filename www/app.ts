@@ -15,17 +15,19 @@
 */
 
 import config from './config';
-import { Spline, Point } from './spline';
+import { Spline, Point, NormalSpline } from './spline';
+import { SplineInstance, SplineUniforms  } from './splineInstance';
 import * as PIXI from 'pixi.js';
 
 /// app class
 class App {
     pixi: PIXI.Application;
+    lineShaderProg: PIXI.Program;
     lineShader: PIXI.Shader;
     spline: Spline;
     
     inputLinePoints: Point[] = [];
-    inputSpline?: Spline;
+    inputSpline: SplineInstance;
 
     lastFrameTime: number;
     simulationTime: number;
@@ -48,44 +50,49 @@ class App {
 
         const frag_line_bg_colour = 'vec3(0.1835)'
         const uniforms = {
-            fCycle: 0.
+            fCycle: 0.,
+            clStart: [1., 0., 0.],
+            clEnd: [1., 1., 0]
         }
-        this.lineShader = PIXI.Shader.from(`
+        this.lineShaderProg = new PIXI.Program(`
 
-            precision mediump float;
-            attribute vec2 aVertexPosition;
-            attribute vec2 aUv; // .x = position on the subspline, .y = position on the whole line
-        
-            uniform mat3 translationMatrix;
-            uniform mat3 projectionMatrix;
+        precision mediump float;
+        attribute vec2 aVertexPosition;
+        attribute vec2 aUv; // .x = position on the subspline, .y = position on the whole line
+    
+        uniform mat3 translationMatrix;
+        uniform mat3 projectionMatrix;
 
-            varying vec2 uv;
-        
-            void main() {
-                gl_Position = vec4((projectionMatrix * translationMatrix * vec3(aVertexPosition, 1.0)).xy, 0.0, 1.0);
-                uv = aUv;
-            }`,
-            `
-            precision mediump float;
-            varying vec2 uv;
+        varying vec2 uv;
+    
+        void main() {
+            gl_Position = vec4((projectionMatrix * translationMatrix * vec3(aVertexPosition, 1.0)).xy, 0.0, 1.0);
+            uv = aUv;
+        }`,
+        `
+        precision mediump float;
+        varying vec2 uv;
 
-            uniform float fCycle;
-        
-            void main() {
-                // vec3 cl = mix(vec3(1.0, 0., 0.), vec3(1.0, 1.0, 0.), vColor.x - fCycle * 2. + 1.);
-                // set colour as function of position on the line
-                vec3 cl = mix(vec3(1.0, 0., 0.), vec3(1.0, 1.0, 0.), uv.y);
-                
-                // shade ends by position on chunk ends
-                /* gl_FragColor = vec4(mix(
-                    cl, 
-                    ${frag_line_bg_colour}, 
-                    smoothstep(0.45, 0.5, abs(0.5 - uv.x))), 
-                    1.0); */
-                gl_FragColor = vec4(cl, 1.0);
-            }
-        
-        `, uniforms);
+        uniform float fCycle;
+        uniform vec3 clStart;
+        uniform vec3 clEnd;
+    
+        void main() {
+            // vec3 cl = mix(vec3(1.0, 0., 0.), vec3(1.0, 1.0, 0.), vColor.x - fCycle * 2. + 1.);
+            // set colour as function of position on the line
+            vec3 cl = mix(clStart, clEnd, uv.y);
+            
+            // shade ends by position on chunk ends
+            /* gl_FragColor = vec4(mix(
+                cl, 
+                ${frag_line_bg_colour}, 
+                smoothstep(0.45, 0.5, abs(0.5 - uv.x))), 
+                1.0); */
+            gl_FragColor = vec4(cl, 1.0);
+        }
+    
+    `)
+        this.lineShader = new PIXI.Shader(this.lineShaderProg, uniforms);
 
         // const exampleLinePoints = [
         //     new Point(20, 120, 0), new Point(50, 120, 1),
@@ -101,8 +108,14 @@ class App {
             new Point(149, 119, 1.995), new Point(152, 121, 1.999),
             new Point(151, 119, 2.01), new Point(310, 120, 3),
         ].map(pt => new Point(pt.x * 4, pt.y, pt.t));
-        this.spline = new Spline(exampleLinePoints)
+        this.spline = new NormalSpline(exampleLinePoints)
         console.log(this.spline.kx, this.spline.ky)
+
+        const inputSplineUniforms = new SplineUniforms()
+        inputSplineUniforms.fCycle = 0
+        inputSplineUniforms.clStart = [1., 0., 1.]
+        inputSplineUniforms.clEnd = [.8, .9, .9]        
+        this.inputSpline = new SplineInstance(this.lineShaderProg, undefined, inputSplineUniforms)
     }
 
     /// load resources
@@ -201,6 +214,16 @@ class App {
             const spline_mesh = new PIXI.Mesh(spline_geom, this.lineShader, PIXI.State.for2d(), PIXI.DRAW_MODES.TRIANGLE_STRIP)
             spline_mesh.shader.uniforms.fCycle = fCycle
             this.pixi.stage.addChild(spline_mesh)
+
+            // current drawn line
+            if (this.inputSpline && this.inputSpline.isRenderable()) {
+                // const sub_interval = this.inputSpline.subInterval(0, 1.)
+                // const spline_geom = this.pointsToMeshStrip(sub_interval)
+                // const spline_mesh = new PIXI.Mesh(spline_geom, this.lineShader, PIXI.State.for2d(), PIXI.DRAW_MODES.TRIANGLE_STRIP)
+                this.inputSpline.rebuild()
+                this.pixi.stage.addChild(this.inputSpline.mesh!)
+            }
+
         }
 
         // draw ui
@@ -259,14 +282,14 @@ class App {
             this.inputLinePoints.push(new Point(x, y, this.simulationTime))
         }
         if (this.inputLinePoints.length > 3)
-            this.inputSpline = new Spline(this.inputLinePoints)
+            this.inputSpline.updateSpline(new NormalSpline(this.inputLinePoints));
     }
 
     /// complete the line
     endLine() {
         if (this.inputLinePoints.length > 3) {
-            this.spline = new Spline(this.inputLinePoints)
-            // console.log(this.inputLinePoints)
+            this.spline = new NormalSpline(this.inputLinePoints)
+            this.inputSpline.reset()
         }
     }
 }

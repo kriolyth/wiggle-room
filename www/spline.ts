@@ -51,7 +51,17 @@ class SplineCoeff {
     }
 }
 
-class Spline {
+interface Spline {
+    points: Point[];
+    kx: SplineCoeff[];
+    ky: SplineCoeff[];
+    time: number;
+
+    calcSpline(): void;
+    subInterval(t_offset: number, t_length: number): Point[];
+}
+
+class NormalSpline implements Spline {
     points: Point[];
     kx: SplineCoeff[];
     ky: SplineCoeff[];
@@ -83,7 +93,7 @@ class Spline {
             fttx[i + 1] = 3 * (dx[i + 1] - dx[i]) / (dt[i + 1] + dt[i]);
             ftty[i + 1] = 3 * (dy[i + 1] - dy[i]) / (dt[i + 1] + dt[i]);
         }
-        fttx[nPoints-1] = 0; ftty[nPoints-1] = 0;
+        fttx[nPoints - 1] = 0; ftty[nPoints - 1] = 0;
 
         this.points.slice(0, -1).forEach((pt, i) => {
             this.kx[i] = new SplineCoeff(
@@ -108,7 +118,7 @@ class Spline {
         const t_last = this.points[this.points.length - 1].t
 
         // interpolate between t_offset and t_offset + t_length
-        const NUM_STEPS = 20 + this.points.length;
+        const NUM_STEPS = 20 + this.points.length * 4;
         // clamp t_offset so that interpolated region is range
         t_offset = Math.max(t_first, Math.min(t_last - t_length, t_offset))
 
@@ -127,4 +137,4 @@ class Spline {
     }
 }
 
-export { Point, Spline }
+export { Point, Spline, NormalSpline }
