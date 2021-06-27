@@ -38,7 +38,13 @@ class SplineInstance {
     mesh?: PIXI.Mesh<PIXI.Shader>;
     shader: PIXI.Shader;
     uniforms: SplineUniforms;
-    needsRebuild: boolean;
+    spStart: number;
+    spEnd: number;
+
+    // changes to spline do not immediately cause mesh to be rebuilt, because
+    // renderer may still reference it. Instead, this flag  is set,
+    // and rebuild is called from animation loop
+    needsRebuild: boolean;  
 
     constructor(program: PIXI.Program, spline?: Spline, uniforms?: SplineUniforms) {
         this.spline = spline;
@@ -46,38 +52,48 @@ class SplineInstance {
         else this.uniforms = new SplineUniforms()
         this.shader = new PIXI.Shader(program, this.uniforms)
 
-        this.needsRebuild = true;
+        this.needsRebuild = true
+        this.spStart = 0.
+        this.spEnd = 1.
     }
 
     updateSpline(spline: Spline) {
-        // if (this.mesh) {
-        //     const geometry = pointsToMeshStrip(spline.subInterval(0., 1.), spline.time)
-        //     this.mesh.verticesBuffer.update(geometry.getBuffer('aVertexPosition').data)
-        //     this.mesh.uvBuffer.update(geometry.getBuffer('aUv').data)
-        //     this.mesh.indices = new Uint16Array(geometry.getIndex().data)
-        // } else 
         this.spline = spline;
         this.needsRebuild = true;
     }
 
-    updateUniforms(uniforms: SplineUniforms) {
-        this.uniforms.fCycle = uniforms.fCycle
-        this.uniforms.clStart = uniforms.clStart
-        this.uniforms.clEnd = uniforms.clEnd
+    setColours(clStart: number[], clEnd: number[]) {
+        this.uniforms.clStart = clStart
+        this.uniforms.clEnd = clEnd
 
         if (this.mesh) {
-            this.mesh.shader.uniforms.fCycle = this.uniforms.fCycle
             this.mesh.shader.uniforms.clStart = this.uniforms.clStart
             this.mesh.shader.uniforms.clEnd = this.uniforms.clEnd
         }
+    }
+
+    setCycle(fCycle: number) {
+        this.uniforms.fCycle = fCycle
+
+        if (this.mesh) {
+            this.mesh.shader.uniforms.fCycle = this.uniforms.fCycle
+        }
+    }
+
+    setSplinePart(fStart: number, fEnd: number) {
+        this.spStart = fStart
+        this.spEnd = fEnd
+        this.needsRebuild = true
     }
 
     rebuild() {
         if (!this.needsRebuild || !this.spline)
             return
 
+        if (this.mesh)
+            this.mesh.destroy()
         this.mesh = new PIXI.Mesh(
-            pointsToMeshStrip(this.spline.subInterval(0., 1.), this.spline.time),
+            pointsToMeshStrip(this.spline.subInterval(this.spStart, this.spEnd), this.spline.time),
             this.shader,
             PIXI.State.for2d(),
             PIXI.DRAW_MODES.TRIANGLE_STRIP)
