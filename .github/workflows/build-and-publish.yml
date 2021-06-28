@@ -1,0 +1,23 @@
+name: npm
+
+on:
+  push:
+    branches: [ corpus ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+      with:
+        persist-credentials: false
+    - name: Build web
+      run: cd www && npm ci && npm run build
+    - name: Publish
+      uses: JamesIves/github-pages-deploy-action@3.7.1
+      with:
+        FOLDER: www/dist
+        BRANCH: gh-pages
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        CLEAN: true
