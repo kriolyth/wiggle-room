@@ -15,7 +15,7 @@
 */
 
 import config from './config';
-import { Spline, Point, NormalSpline } from './spline';
+import { Point, NormalSpline } from './spline';
 import { SplineInstance, SplineUniforms } from './splineInstance';
 import * as PIXI from 'pixi.js';
 
@@ -24,7 +24,6 @@ class App {
     pixi: PIXI.Application;
     lineShaderProg: PIXI.Program;
     lineShader: PIXI.Shader;
-    spline: Spline;
     splines: SplineInstance[] = [];
 
     inputLinePoints: Point[] = [];
@@ -89,14 +88,6 @@ class App {
     `)
         this.lineShader = new PIXI.Shader(this.lineShaderProg, uniforms);
 
-        const exampleLinePoints = [
-            new Point(120, 120, 0), new Point(150, 119, 1.99),
-            new Point(149, 119, 1.995), new Point(152, 121, 1.999),
-            new Point(151, 119, 2.01), new Point(310, 120, 3),
-        ].map(pt => new Point(pt.x * 4, pt.y, pt.t));
-        this.spline = new NormalSpline(exampleLinePoints)
-        // console.log(this.spline.kx, this.spline.ky)
-
         const inputSplineUniforms = new SplineUniforms()
         inputSplineUniforms.fCycle = 0
         inputSplineUniforms.clStart = [1., 0., 1.]
@@ -129,7 +120,7 @@ class App {
             // clear everything
             this.pixi.stage.removeChildren()
 
-            const line_fraction = this.spline.time / 3;
+            const line_fraction = config.field.lineFraction;
             const interval_start = Math.max(0, fCycle * (1 + line_fraction) - line_fraction)
             const interval_end = Math.min(1., fCycle * (1 + line_fraction))
             for (let sp of this.splines) {
@@ -212,7 +203,6 @@ class App {
     /// complete the line
     endLine() {
         if (this.inputLinePoints.length > 3) {
-            // this.spline = new NormalSpline(this.inputLinePoints)
             const new_spline = new SplineInstance(this.lineShaderProg, new NormalSpline(this.inputLinePoints))
             this.splines.push(new_spline)
             this.inputSpline.reset()

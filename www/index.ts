@@ -15,7 +15,6 @@
 */
 
 import { createApp } from './app'
-import config from './config'
 
 // bind app to DOM
 function bindApp() {
@@ -25,15 +24,6 @@ function bindApp() {
 
     view.appendChild(app.pixi.view)
 
-    document.getElementById("reset")?.addEventListener("click", () => {
-        app.reset()
-        app.startRender()
-        const pp = document.getElementById("play-pause")
-        if (pp) {
-            pp.innerHTML = 'Play'
-        }
-    })
-
     document.getElementById("view")?.addEventListener("mousedown", (ev: MouseEvent) => {
         if (!app.isReady()) {
             app.startRender()
@@ -42,7 +32,6 @@ function bindApp() {
             // drawing mode: mouse button pressed
             app.beginLine()
             app.addPointToLine(ev.offsetX, ev.offsetY)
-            // console.log(ev)
         }
     })
 
@@ -50,7 +39,6 @@ function bindApp() {
         if (ev.buttons & 1) {
             // drawing mode
             app.addPointToLine(ev.offsetX, ev.offsetY)
-            // console.log(ev)
         }
     })
 
@@ -67,13 +55,10 @@ function bindApp() {
             for (let touch of Array.from(ev.touches)) {
                 const px = touch.clientX - rc.left
                 const py = touch.clientY - rc.top
-                // app.addCustomParticle(px, py)
                 app.startRender()
             }
         }
     })
-
-
 }
 
 if (document.readyState !== 'loading') bindApp()

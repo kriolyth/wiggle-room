@@ -8,4 +8,4 @@
 
 ## Web part
 
-Something fancy with shaders
+Draw synchronized wiggles on the screen.

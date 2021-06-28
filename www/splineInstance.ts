@@ -21,15 +21,6 @@ class SplineUniforms {
     fCycle = 0.;
     clStart = [1., 0., 0.];
     clEnd = [1., 1., 0];
-
-    clone(): SplineUniforms {
-        let result = new SplineUniforms()
-        result.fCycle = this.fCycle
-        result.clStart = this.clStart
-        result.clEnd = this.clEnd
-
-        return result
-    }
 }
 
 
@@ -148,7 +139,9 @@ function pointsToMeshStrip(pts: Point[], spline_time: number): PIXI.Geometry {
             if (index == 0) return Math.atan2(pts[index + 1].y - pt.y, pts[index + 1].x - pt.x)
             else if (index == pts.length - 1) return Math.atan2(pt.y - pts[index - 1].y, pt.x - pts[index - 1].x)
             // average the two -- better to use weighted average by length though
-            return 0.5 * (Math.atan2(pts[index + 1].y - pt.y, pts[index + 1].x - pt.x) + Math.atan2(pt.y - pts[index - 1].y, pt.x - pts[index - 1].x))
+            return 0.5 * (
+                Math.atan2(pts[index + 1].y - pt.y, pts[index + 1].x - pt.x) + 
+                Math.atan2(pt.y - pts[index - 1].y, pt.x - pts[index - 1].x))
         })
         // create tunnel vertices (a pair of them per every line point)
         lineSegment(pts, tangents, verts)
