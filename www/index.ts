@@ -14,7 +14,7 @@
    limitations under the License.
 */
 
-import { App, createApp } from './app'
+import { createApp } from './app'
 
 // bind app to DOM
 function bindApp() {
@@ -30,8 +30,8 @@ function bindApp() {
         }
         if (ev.buttons & 1) {
             // drawing mode: mouse button pressed
-            app.beginLine()
-            app.addPointToLine(ev.offsetX, ev.offsetY)
+            app.beginLine(0)
+            app.addPointToLine(0, ev.offsetX, ev.offsetY)
         }
     })
     document.getElementById("view")?.addEventListener("touchstart", (ev: TouchEvent) => {
@@ -39,26 +39,27 @@ function bindApp() {
             app.startRender()
         }
         const rc = document.getElementById("view")?.getBoundingClientRect();
-        if (rc && ev.touches.length == 1) {
-            // drawing mode: single point
-            const touch = ev.touches[0]!
-            app.beginLine()
-            app.addPointToLine(touch.clientX - rc.left, touch.clientY - rc.top)
+        if (rc) {
+            // drawing mode: touch / multitouch
+            for (let touch of Array.from(ev.touches)) {
+                app.beginLine(touch.identifier)
+                app.addPointToLine(touch.identifier, touch.clientX - rc.left, touch.clientY - rc.top)
+            }
         }
     })
 
     document.getElementById("view")?.addEventListener("mousemove", (ev: MouseEvent) => {
         if (ev.buttons & 1) {
-            // drawing mode
-            app.addPointToLine(ev.offsetX, ev.offsetY)
+            // drawing mode: mouse button still pressed
+            app.addPointToLine(0, ev.offsetX, ev.offsetY)
         }
     })
     document.getElementById("view")?.addEventListener("touchmove", (ev: TouchEvent) => {
         const rc = document.getElementById("view")?.getBoundingClientRect();
-        if (rc && ev.touches.length == 1) {
-            // drawing mode: single point
-            for (let touch of Array.from(ev.touches)) {
-                app.addPointToLine(touch.clientX - rc.left, touch.clientY - rc.top)
+        if (rc) {
+            // drawing mode: touch / multitouch
+            for (let touch of Array.from(ev.changedTouches)) {
+                app.addPointToLine(touch.identifier, touch.clientX - rc.left, touch.clientY - rc.top)
             }
         }
     })
@@ -66,13 +67,14 @@ function bindApp() {
     document.getElementById("view")?.addEventListener("mouseup", (ev: MouseEvent) => {
         if (ev.button == 0) {
             // left button depressed - end the line
-            app.endLine()
+            app.endLine(0)
         }
     })
     document.getElementById("view")?.addEventListener("touchend", (ev: TouchEvent) => {
-        if (ev.touches.length == 0) {
-            // touch ended
-            app.endLine()
+        ev.preventDefault()
+        for (let touch of Array.from(ev.changedTouches)) {
+            // we can use endLine result to distinguish a tap and a move
+            app.endLine(touch.identifier)
         }
     })
 }
