@@ -9,6 +9,7 @@
 "use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "App": () => (/* binding */ App),
 /* harmony export */   "app": () => (/* binding */ app),
 /* harmony export */   "createApp": () => (/* binding */ createApp)
 /* harmony export */ });
@@ -299,7 +300,7 @@ __webpack_require__.r(__webpack_exports__);
 
 // bind app to DOM
 function bindApp() {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d, _e, _f, _g;
     var view = (_a = document.getElementById("view")) !== null && _a !== void 0 ? _a : document.body;
     var app = (0,_app__WEBPACK_IMPORTED_MODULE_0__.createApp)(view);
     app.load();
@@ -314,29 +315,46 @@ function bindApp() {
             app.addPointToLine(ev.offsetX, ev.offsetY);
         }
     });
-    (_c = document.getElementById("view")) === null || _c === void 0 ? void 0 : _c.addEventListener("mousemove", function (ev) {
+    (_c = document.getElementById("view")) === null || _c === void 0 ? void 0 : _c.addEventListener("touchstart", function (ev) {
+        var _a;
+        if (!app.isReady()) {
+            app.startRender();
+        }
+        var rc = (_a = document.getElementById("view")) === null || _a === void 0 ? void 0 : _a.getBoundingClientRect();
+        if (rc && ev.touches.length == 1) {
+            // drawing mode: single point
+            var touch = ev.touches[0];
+            app.beginLine();
+            app.addPointToLine(touch.clientX - rc.left, touch.clientY - rc.top);
+        }
+    });
+    (_d = document.getElementById("view")) === null || _d === void 0 ? void 0 : _d.addEventListener("mousemove", function (ev) {
         if (ev.buttons & 1) {
             // drawing mode
             app.addPointToLine(ev.offsetX, ev.offsetY);
         }
     });
-    (_d = document.getElementById("view")) === null || _d === void 0 ? void 0 : _d.addEventListener("mouseup", function (ev) {
+    (_e = document.getElementById("view")) === null || _e === void 0 ? void 0 : _e.addEventListener("touchmove", function (ev) {
+        var _a;
+        var rc = (_a = document.getElementById("view")) === null || _a === void 0 ? void 0 : _a.getBoundingClientRect();
+        if (rc && ev.touches.length == 1) {
+            // drawing mode: single point
+            for (var _i = 0, _b = Array.from(ev.touches); _i < _b.length; _i++) {
+                var touch = _b[_i];
+                app.addPointToLine(touch.clientX - rc.left, touch.clientY - rc.top);
+            }
+        }
+    });
+    (_f = document.getElementById("view")) === null || _f === void 0 ? void 0 : _f.addEventListener("mouseup", function (ev) {
         if (ev.button == 0) {
             // left button depressed - end the line
             app.endLine();
         }
     });
-    (_e = document.getElementById("view")) === null || _e === void 0 ? void 0 : _e.addEventListener("touchmove", function (ev) {
-        var _a;
-        var rc = (_a = document.getElementById("view")) === null || _a === void 0 ? void 0 : _a.getBoundingClientRect();
-        if (rc && !app.isReady()) {
-            // drawing mode: not running, touch active
-            for (var _i = 0, _b = Array.from(ev.touches); _i < _b.length; _i++) {
-                var touch = _b[_i];
-                var px = touch.clientX - rc.left;
-                var py = touch.clientY - rc.top;
-                app.startRender();
-            }
+    (_g = document.getElementById("view")) === null || _g === void 0 ? void 0 : _g.addEventListener("touchend", function (ev) {
+        if (ev.touches.length == 0) {
+            // touch ended
+            app.endLine();
         }
     });
 }
