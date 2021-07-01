@@ -14,7 +14,7 @@
    limitations under the License.
 */
 
-import { createApp } from './app'
+import { App, createApp } from './app'
 
 // bind app to DOM
 function bindApp() {
@@ -34,11 +34,32 @@ function bindApp() {
             app.addPointToLine(ev.offsetX, ev.offsetY)
         }
     })
+    document.getElementById("view")?.addEventListener("touchstart", (ev: TouchEvent) => {
+        if (!app.isReady()) {
+            app.startRender()
+        }
+        const rc = document.getElementById("view")?.getBoundingClientRect();
+        if (rc && ev.touches.length == 1) {
+            // drawing mode: single point
+            const touch = ev.touches[0]!
+            app.beginLine()
+            app.addPointToLine(touch.clientX - rc.left, touch.clientY - rc.top)
+        }
+    })
 
     document.getElementById("view")?.addEventListener("mousemove", (ev: MouseEvent) => {
         if (ev.buttons & 1) {
             // drawing mode
             app.addPointToLine(ev.offsetX, ev.offsetY)
+        }
+    })
+    document.getElementById("view")?.addEventListener("touchmove", (ev: TouchEvent) => {
+        const rc = document.getElementById("view")?.getBoundingClientRect();
+        if (rc && ev.touches.length == 1) {
+            // drawing mode: single point
+            for (let touch of Array.from(ev.touches)) {
+                app.addPointToLine(touch.clientX - rc.left, touch.clientY - rc.top)
+            }
         }
     })
 
@@ -48,15 +69,10 @@ function bindApp() {
             app.endLine()
         }
     })
-    document.getElementById("view")?.addEventListener("touchmove", (ev: TouchEvent) => {
-        const rc = document.getElementById("view")?.getBoundingClientRect();
-        if (rc && !app.isReady()) {
-            // drawing mode: not running, touch active
-            for (let touch of Array.from(ev.touches)) {
-                const px = touch.clientX - rc.left
-                const py = touch.clientY - rc.top
-                app.startRender()
-            }
+    document.getElementById("view")?.addEventListener("touchend", (ev: TouchEvent) => {
+        if (ev.touches.length == 0) {
+            // touch ended
+            app.endLine()
         }
     })
 }

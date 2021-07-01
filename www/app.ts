@@ -216,4 +216,4 @@ function createApp(container: HTMLElement) {
     return app
 }
 
-export { app, createApp }
+export { App, app, createApp }
