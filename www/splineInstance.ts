@@ -106,7 +106,7 @@ class SplineInstance {
 /////////////////////////////////
 
 function lineSegment(ends: Point[], tangents: number[], verts: number[]) {
-    const width = 2.0;
+    const width = 2.0 * (devicePixelRatio || 1.0);
     ends.forEach((pt, index) => {
         const sink = Math.sin(-tangents[index])
         const cosk = Math.cos(-tangents[index])
