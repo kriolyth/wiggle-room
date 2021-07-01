@@ -41,8 +41,7 @@ __webpack_require__.r(__webpack_exports__);
 var App = /** @class */ (function () {
     function App(container) {
         this.splines = [];
-        this.inputLinesPoints = {};
-        this.inputSplines = {};
+        this.inputs = {};
         this.pixi = new pixi_js__WEBPACK_IMPORTED_MODULE_3__.Application({
             backgroundColor: _config__WEBPACK_IMPORTED_MODULE_0__.default.colours.background,
             antialias: true,
@@ -94,11 +93,11 @@ var App = /** @class */ (function () {
                 }
             }
             // current drawn line
-            for (var _b = 0, _c = Object.values(this.inputSplines); _b < _c.length; _b++) {
-                var spline = _c[_b];
-                spline.rebuild();
-                if (spline.isRenderable())
-                    this.pixi.stage.addChild(spline.mesh);
+            for (var _b = 0, _c = Object.values(this.inputs); _b < _c.length; _b++) {
+                var input = _c[_b];
+                input.spline.rebuild();
+                if (input.spline.isRenderable())
+                    this.pixi.stage.addChild(input.spline.mesh);
             }
         }
         // draw ui
@@ -136,19 +135,23 @@ var App = /** @class */ (function () {
     };
     /// Start entering new line
     App.prototype.beginLine = function (lineIndex) {
-        this.inputLinesPoints[lineIndex] = [];
-        var inputSplineUniforms = new _splineInstance__WEBPACK_IMPORTED_MODULE_2__.SplineUniforms();
-        inputSplineUniforms.fCycle = 0;
-        inputSplineUniforms.clStart = [1., 0., 1.];
-        inputSplineUniforms.clEnd = [.8, .9, .9];
-        this.inputSplines[lineIndex] = new _splineInstance__WEBPACK_IMPORTED_MODULE_2__.SplineInstance(this.lineShader, undefined, inputSplineUniforms);
+        if (this.inputs[lineIndex] === undefined) {
+            var inputSplineUniforms = new _splineInstance__WEBPACK_IMPORTED_MODULE_2__.SplineUniforms();
+            inputSplineUniforms.fCycle = 0;
+            inputSplineUniforms.clStart = [1., 0., 1.];
+            inputSplineUniforms.clEnd = [.8, .9, .9];
+            this.inputs[lineIndex] = {
+                points: [],
+                spline: new _splineInstance__WEBPACK_IMPORTED_MODULE_2__.SplineInstance(this.lineShader, undefined, inputSplineUniforms)
+            };
+        }
     };
     /// add a point to current line
     App.prototype.addPointToLine = function (lineIndex, x, y) {
         var STEP = 0.03;
-        if (this.inputLinesPoints[lineIndex] === undefined)
+        if (this.inputs[lineIndex] === undefined)
             return;
-        var inputPts = this.inputLinesPoints[lineIndex];
+        var inputPts = this.inputs[lineIndex].points;
         // add points to line, but not too close in time
         if (inputPts.length == 0 || this.simulationTime - inputPts[inputPts.length - 1].t > STEP) {
             if (inputPts.length) {
@@ -160,18 +163,17 @@ var App = /** @class */ (function () {
             inputPts.push(new _spline__WEBPACK_IMPORTED_MODULE_1__.Point(x, y, this.simulationTime));
         }
         if (inputPts.length > 3)
-            this.inputSplines[lineIndex].updateSpline(new _spline__WEBPACK_IMPORTED_MODULE_1__.NormalSpline(inputPts));
+            this.inputs[lineIndex].spline.updateSpline(new _spline__WEBPACK_IMPORTED_MODULE_1__.NormalSpline(inputPts));
     };
     /// complete the line
     /// Return 'true' if there was a line to complete
     App.prototype.endLine = function (lineIndex) {
-        if (this.inputLinesPoints[lineIndex] === undefined)
+        if (this.inputs[lineIndex] === undefined)
             return false;
-        if (this.inputLinesPoints[lineIndex].length > 3) {
-            var new_spline = new _splineInstance__WEBPACK_IMPORTED_MODULE_2__.SplineInstance(this.lineShader, this.inputSplines[lineIndex].spline);
+        if (this.inputs[lineIndex].points.length > 3) {
+            var new_spline = new _splineInstance__WEBPACK_IMPORTED_MODULE_2__.SplineInstance(this.lineShader, this.inputs[lineIndex].spline.spline);
             this.splines.push(new_spline);
-            delete this.inputLinesPoints[lineIndex];
-            delete this.inputSplines[lineIndex];
+            delete this.inputs[lineIndex];
             return true;
         }
         return false;
@@ -584,7 +586,7 @@ var SplineInstance = /** @class */ (function () {
 // Utilities
 /////////////////////////////////
 function lineSegment(ends, tangents, verts) {
-    var width = 2.0;
+    var width = 2.0 * (devicePixelRatio || 1.0);
     ends.forEach(function (pt, index) {
         var sink = Math.sin(-tangents[index]);
         var cosk = Math.cos(-tangents[index]);
