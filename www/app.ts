@@ -24,9 +24,7 @@ class App {
     pixi: PIXI.Application;
     lineShader: PIXI.Program;
     splines: SplineInstance[] = [];
-
-    inputLinesPoints: { [index: number]: Point[] } = {};
-    inputSplines: { [index: number]: SplineInstance } = {};
+    inputs: { [index: number]: { points: Point[], spline: SplineInstance }} = {}
 
     lastFrameTime: number;
     simulationTime: number;
@@ -126,10 +124,10 @@ class App {
             }
 
             // current drawn line
-            for (let spline of Object.values(this.inputSplines)) {
-                spline.rebuild()
-                if (spline.isRenderable())
-                    this.pixi.stage.addChild(spline.mesh!)
+            for (let input of Object.values(this.inputs)) {
+                input.spline.rebuild()
+                if (input.spline.isRenderable())
+                    this.pixi.stage.addChild(input.spline.mesh!)
             }
 
         }
@@ -173,20 +171,24 @@ class App {
 
     /// Start entering new line
     beginLine(lineIndex: number) {
-        this.inputLinesPoints[lineIndex] = []
-        const inputSplineUniforms = new SplineUniforms()
-        inputSplineUniforms.fCycle = 0
-        inputSplineUniforms.clStart = [1., 0., 1.]
-        inputSplineUniforms.clEnd = [.8, .9, .9]
-        this.inputSplines[lineIndex] = new SplineInstance(this.lineShader, undefined, inputSplineUniforms)
+        if (this.inputs[lineIndex] === undefined) {
+            const inputSplineUniforms = new SplineUniforms()
+            inputSplineUniforms.fCycle = 0
+            inputSplineUniforms.clStart = [1., 0., 1.]
+            inputSplineUniforms.clEnd = [.8, .9, .9]
+            this.inputs[lineIndex] = {
+                points: [], 
+                spline: new SplineInstance(this.lineShader, undefined, inputSplineUniforms)
+            }
+        }
     }
 
     /// add a point to current line
     addPointToLine(lineIndex: number, x: number, y: number) {
         const STEP = 0.03;
-        if (this.inputLinesPoints[lineIndex] === undefined)
+        if (this.inputs[lineIndex] === undefined)
             return
-        const inputPts = this.inputLinesPoints[lineIndex]
+        const inputPts = this.inputs[lineIndex].points
         // add points to line, but not too close in time
         if (inputPts.length == 0 || this.simulationTime - inputPts[inputPts.length - 1].t > STEP) {
             if (inputPts.length) {
@@ -198,19 +200,18 @@ class App {
             inputPts.push(new Point(x, y, this.simulationTime))
         }
         if (inputPts.length > 3)
-            this.inputSplines[lineIndex].updateSpline(new NormalSpline(inputPts));
+            this.inputs[lineIndex].spline.updateSpline(new NormalSpline(inputPts));
     }
 
     /// complete the line
     /// Return 'true' if there was a line to complete
     endLine(lineIndex: number) {
-        if (this.inputLinesPoints[lineIndex] === undefined)
+        if (this.inputs[lineIndex] === undefined)
             return false
-        if (this.inputLinesPoints[lineIndex].length > 3) {
-            const new_spline = new SplineInstance(this.lineShader, this.inputSplines[lineIndex].spline)
+        if (this.inputs[lineIndex].points.length > 3) {
+            const new_spline = new SplineInstance(this.lineShader, this.inputs[lineIndex].spline.spline)
             this.splines.push(new_spline)
-            delete this.inputLinesPoints[lineIndex]
-            delete this.inputSplines[lineIndex]
+            delete this.inputs[lineIndex]
             return true
         }
         return false
