@@ -41,7 +41,8 @@ __webpack_require__.r(__webpack_exports__);
 var App = /** @class */ (function () {
     function App(container) {
         this.splines = [];
-        this.inputLinePoints = [];
+        this.inputLinesPoints = {};
+        this.inputSplines = {};
         this.pixi = new pixi_js__WEBPACK_IMPORTED_MODULE_3__.Application({
             backgroundColor: _config__WEBPACK_IMPORTED_MODULE_0__.default.colours.background,
             antialias: true,
@@ -58,13 +59,7 @@ var App = /** @class */ (function () {
             clStart: [1., 0., 0.],
             clEnd: [1., 1., 0]
         };
-        this.lineShaderProg = new pixi_js__WEBPACK_IMPORTED_MODULE_3__.Program("\n\n        precision mediump float;\n        attribute vec2 aVertexPosition;\n        attribute vec2 aUv; // .x = position on the subspline, .y = position on the whole line\n    \n        uniform mat3 translationMatrix;\n        uniform mat3 projectionMatrix;\n\n        varying vec2 uv;\n    \n        void main() {\n            gl_Position = vec4((projectionMatrix * translationMatrix * vec3(aVertexPosition, 1.0)).xy, 0.0, 1.0);\n            uv = aUv;\n        }", "\n        precision mediump float;\n        varying vec2 uv;\n\n        uniform float fCycle;\n        uniform vec3 clStart;\n        uniform vec3 clEnd;\n    \n        void main() {\n            // set colour as function of position on the line\n            vec3 cl = mix(clStart, clEnd, uv.y);\n            \n            // shade ends by position on chunk ends\n            gl_FragColor = vec4(cl, 1.0);\n        }\n    \n    ");
-        this.lineShader = new pixi_js__WEBPACK_IMPORTED_MODULE_3__.Shader(this.lineShaderProg, uniforms);
-        var inputSplineUniforms = new _splineInstance__WEBPACK_IMPORTED_MODULE_2__.SplineUniforms();
-        inputSplineUniforms.fCycle = 0;
-        inputSplineUniforms.clStart = [1., 0., 1.];
-        inputSplineUniforms.clEnd = [.8, .9, .9];
-        this.inputSpline = new _splineInstance__WEBPACK_IMPORTED_MODULE_2__.SplineInstance(this.lineShaderProg, undefined, inputSplineUniforms);
+        this.lineShader = new pixi_js__WEBPACK_IMPORTED_MODULE_3__.Program("\n\n        precision mediump float;\n        attribute vec2 aVertexPosition;\n        attribute vec2 aUv; // .x = position on the subspline, .y = position on the whole line\n    \n        uniform mat3 translationMatrix;\n        uniform mat3 projectionMatrix;\n\n        varying vec2 uv;\n    \n        void main() {\n            gl_Position = vec4((projectionMatrix * translationMatrix * vec3(aVertexPosition, 1.0)).xy, 0.0, 1.0);\n            uv = aUv;\n        }", "\n        precision mediump float;\n        varying vec2 uv;\n\n        uniform float fCycle;\n        uniform vec3 clStart;\n        uniform vec3 clEnd;\n    \n        void main() {\n            // set colour as function of position on the line\n            vec3 cl = mix(clStart, clEnd, uv.y);\n            \n            // shade ends by position on chunk ends\n            gl_FragColor = vec4(cl, 1.0);\n        }\n    \n    ");
     }
     /// load resources
     App.prototype.load = function () {
@@ -99,10 +94,11 @@ var App = /** @class */ (function () {
                 }
             }
             // current drawn line
-            if (this.inputSpline) {
-                this.inputSpline.rebuild();
-                if (this.inputSpline.isRenderable())
-                    this.pixi.stage.addChild(this.inputSpline.mesh);
+            for (var _b = 0, _c = Object.values(this.inputSplines); _b < _c.length; _b++) {
+                var spline = _c[_b];
+                spline.rebuild();
+                if (spline.isRenderable())
+                    this.pixi.stage.addChild(spline.mesh);
             }
         }
         // draw ui
@@ -139,32 +135,46 @@ var App = /** @class */ (function () {
         this.pixi.stop();
     };
     /// Start entering new line
-    App.prototype.beginLine = function () {
-        this.inputLinePoints = [];
+    App.prototype.beginLine = function (lineIndex) {
+        this.inputLinesPoints[lineIndex] = [];
+        var inputSplineUniforms = new _splineInstance__WEBPACK_IMPORTED_MODULE_2__.SplineUniforms();
+        inputSplineUniforms.fCycle = 0;
+        inputSplineUniforms.clStart = [1., 0., 1.];
+        inputSplineUniforms.clEnd = [.8, .9, .9];
+        this.inputSplines[lineIndex] = new _splineInstance__WEBPACK_IMPORTED_MODULE_2__.SplineInstance(this.lineShader, undefined, inputSplineUniforms);
     };
     /// add a point to current line
-    App.prototype.addPointToLine = function (x, y) {
+    App.prototype.addPointToLine = function (lineIndex, x, y) {
         var STEP = 0.03;
+        if (this.inputLinesPoints[lineIndex] === undefined)
+            return;
+        var inputPts = this.inputLinesPoints[lineIndex];
         // add points to line, but not too close in time
-        if (this.inputLinePoints.length == 0 || this.simulationTime - this.inputLinePoints[this.inputLinePoints.length - 1].t > STEP) {
-            if (this.inputLinePoints.length) {
-                var lastPoint = this.inputLinePoints[this.inputLinePoints.length - 1];
+        if (inputPts.length == 0 || this.simulationTime - inputPts[inputPts.length - 1].t > STEP) {
+            if (inputPts.length) {
+                var lastPoint = inputPts[inputPts.length - 1];
                 // duplicate previous point if the pause was too long - this should cue interpolation
                 for (var t = lastPoint.t + STEP; t < this.simulationTime - STEP * 2; t += STEP)
-                    this.inputLinePoints.push(new _spline__WEBPACK_IMPORTED_MODULE_1__.Point(lastPoint.x, lastPoint.y, t));
+                    inputPts.push(new _spline__WEBPACK_IMPORTED_MODULE_1__.Point(lastPoint.x, lastPoint.y, t));
             }
-            this.inputLinePoints.push(new _spline__WEBPACK_IMPORTED_MODULE_1__.Point(x, y, this.simulationTime));
+            inputPts.push(new _spline__WEBPACK_IMPORTED_MODULE_1__.Point(x, y, this.simulationTime));
         }
-        if (this.inputLinePoints.length > 3)
-            this.inputSpline.updateSpline(new _spline__WEBPACK_IMPORTED_MODULE_1__.NormalSpline(this.inputLinePoints));
+        if (inputPts.length > 3)
+            this.inputSplines[lineIndex].updateSpline(new _spline__WEBPACK_IMPORTED_MODULE_1__.NormalSpline(inputPts));
     };
     /// complete the line
-    App.prototype.endLine = function () {
-        if (this.inputLinePoints.length > 3) {
-            var new_spline = new _splineInstance__WEBPACK_IMPORTED_MODULE_2__.SplineInstance(this.lineShaderProg, new _spline__WEBPACK_IMPORTED_MODULE_1__.NormalSpline(this.inputLinePoints));
+    /// Return 'true' if there was a line to complete
+    App.prototype.endLine = function (lineIndex) {
+        if (this.inputLinesPoints[lineIndex] === undefined)
+            return false;
+        if (this.inputLinesPoints[lineIndex].length > 3) {
+            var new_spline = new _splineInstance__WEBPACK_IMPORTED_MODULE_2__.SplineInstance(this.lineShader, this.inputSplines[lineIndex].spline);
             this.splines.push(new_spline);
-            this.inputSpline.reset();
+            delete this.inputLinesPoints[lineIndex];
+            delete this.inputSplines[lineIndex];
+            return true;
         }
+        return false;
     };
     return App;
 }());
@@ -311,8 +321,8 @@ function bindApp() {
         }
         if (ev.buttons & 1) {
             // drawing mode: mouse button pressed
-            app.beginLine();
-            app.addPointToLine(ev.offsetX, ev.offsetY);
+            app.beginLine(0);
+            app.addPointToLine(0, ev.offsetX, ev.offsetY);
         }
     });
     (_c = document.getElementById("view")) === null || _c === void 0 ? void 0 : _c.addEventListener("touchstart", function (ev) {
@@ -321,40 +331,44 @@ function bindApp() {
             app.startRender();
         }
         var rc = (_a = document.getElementById("view")) === null || _a === void 0 ? void 0 : _a.getBoundingClientRect();
-        if (rc && ev.touches.length == 1) {
-            // drawing mode: single point
-            var touch = ev.touches[0];
-            app.beginLine();
-            app.addPointToLine(touch.clientX - rc.left, touch.clientY - rc.top);
+        if (rc) {
+            // drawing mode: touch / multitouch
+            for (var _i = 0, _b = Array.from(ev.touches); _i < _b.length; _i++) {
+                var touch = _b[_i];
+                app.beginLine(touch.identifier);
+                app.addPointToLine(touch.identifier, touch.clientX - rc.left, touch.clientY - rc.top);
+            }
         }
     });
     (_d = document.getElementById("view")) === null || _d === void 0 ? void 0 : _d.addEventListener("mousemove", function (ev) {
         if (ev.buttons & 1) {
-            // drawing mode
-            app.addPointToLine(ev.offsetX, ev.offsetY);
+            // drawing mode: mouse button still pressed
+            app.addPointToLine(0, ev.offsetX, ev.offsetY);
         }
     });
     (_e = document.getElementById("view")) === null || _e === void 0 ? void 0 : _e.addEventListener("touchmove", function (ev) {
         var _a;
         var rc = (_a = document.getElementById("view")) === null || _a === void 0 ? void 0 : _a.getBoundingClientRect();
-        if (rc && ev.touches.length == 1) {
-            // drawing mode: single point
-            for (var _i = 0, _b = Array.from(ev.touches); _i < _b.length; _i++) {
+        if (rc) {
+            // drawing mode: touch / multitouch
+            for (var _i = 0, _b = Array.from(ev.changedTouches); _i < _b.length; _i++) {
                 var touch = _b[_i];
-                app.addPointToLine(touch.clientX - rc.left, touch.clientY - rc.top);
+                app.addPointToLine(touch.identifier, touch.clientX - rc.left, touch.clientY - rc.top);
             }
         }
     });
     (_f = document.getElementById("view")) === null || _f === void 0 ? void 0 : _f.addEventListener("mouseup", function (ev) {
         if (ev.button == 0) {
             // left button depressed - end the line
-            app.endLine();
+            app.endLine(0);
         }
     });
     (_g = document.getElementById("view")) === null || _g === void 0 ? void 0 : _g.addEventListener("touchend", function (ev) {
-        if (ev.touches.length == 0) {
-            // touch ended
-            app.endLine();
+        ev.preventDefault();
+        for (var _i = 0, _a = Array.from(ev.changedTouches); _i < _a.length; _i++) {
+            var touch = _a[_i];
+            // we can use endLine result to distinguish a tap and a move
+            app.endLine(touch.identifier);
         }
     });
 }
