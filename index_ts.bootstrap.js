@@ -52,13 +52,8 @@ var App = /** @class */ (function () {
         this.paused = false;
         this.lastFrameTime = 0;
         this.simulationTime = 0;
-        var frag_line_bg_colour = 'vec3(0.1835)';
-        var uniforms = {
-            fCycle: 0.,
-            clStart: [1., 0., 0.],
-            clEnd: [1., 1., 0]
-        };
-        this.lineShader = new pixi_js__WEBPACK_IMPORTED_MODULE_3__.Program("\n\n        precision mediump float;\n        attribute vec2 aVertexPosition;\n        attribute vec2 aUv; // .x = position on the subspline, .y = position on the whole line\n    \n        uniform mat3 translationMatrix;\n        uniform mat3 projectionMatrix;\n\n        varying vec2 uv;\n    \n        void main() {\n            gl_Position = vec4((projectionMatrix * translationMatrix * vec3(aVertexPosition, 1.0)).xy, 0.0, 1.0);\n            uv = aUv;\n        }", "\n        precision mediump float;\n        varying vec2 uv;\n\n        uniform float fCycle;\n        uniform vec3 clStart;\n        uniform vec3 clEnd;\n    \n        void main() {\n            // set colour as function of position on the line\n            vec3 cl = mix(clStart, clEnd, uv.y);\n            \n            // shade ends by position on chunk ends\n            gl_FragColor = vec4(cl, 1.0);\n        }\n    \n    ");
+        this.lineShader = new pixi_js__WEBPACK_IMPORTED_MODULE_3__.Program("\n\n        precision mediump float;\n        attribute vec2 aVertexPosition;\n        attribute vec2 aUv; // .x = position on the subspline, .y = position on the whole line\n    \n        uniform mat3 translationMatrix;\n        uniform mat3 projectionMatrix;\n\n        varying vec2 uv;\n    \n        void main() {\n            gl_Position = vec4((projectionMatrix * translationMatrix * vec3(aVertexPosition, 1.0)).xy, 0.0, 1.0);\n            uv = aUv;\n        }", "\n        precision mediump float;\n        varying vec2 uv;\n\n        uniform float fCycle;\n        uniform vec3 clStart;\n        uniform vec3 clEnd;\n    \n        void main() {\n            // set colour as function of position on the line\n            vec3 cl = mix(clStart, clEnd, uv.y);\n            \n            // shade ends by position on chunk ends\n            gl_FragColor = vec4(cl, 1.0);\n        }");
+        this.inputContainer = new pixi_js__WEBPACK_IMPORTED_MODULE_3__.Container();
     }
     /// load resources
     App.prototype.load = function () {
@@ -71,6 +66,7 @@ var App = /** @class */ (function () {
         var _this = this;
         // field ui
         this.pixi.ticker.add(function (delta) { return _this.loop(delta); });
+        this.pixi.stage.addChild(this.inputContainer);
         this.start();
     };
     /// draw loop
@@ -78,26 +74,31 @@ var App = /** @class */ (function () {
         if (this.ready && !this.paused) {
             this.simulationTime += delta / 60.;
             var fCycle = this.simulationTime / _config__WEBPACK_IMPORTED_MODULE_0__.default.field.cycleLength - Math.trunc(this.simulationTime / _config__WEBPACK_IMPORTED_MODULE_0__.default.field.cycleLength);
-            // clear everything
-            this.pixi.stage.removeChildren();
+            // clear currently drawn lines - they are rebuilt every frame
+            this.inputContainer.removeChildren();
             var line_fraction = _config__WEBPACK_IMPORTED_MODULE_0__.default.field.lineFraction;
             var interval_start = Math.max(0, fCycle * (1 + line_fraction) - line_fraction);
             var interval_end = Math.min(1., fCycle * (1 + line_fraction));
             for (var _i = 0, _a = this.splines; _i < _a.length; _i++) {
                 var sp = _a[_i];
                 sp.setCycle(fCycle);
-                sp.setSplinePart(Math.max(0., interval_start), Math.max(0., interval_end - interval_start));
+                sp.setSplinePart(Math.max(0., interval_start), Math.max(0., interval_end));
                 sp.rebuild();
                 if (sp.isRenderable()) {
-                    this.pixi.stage.addChild(sp.mesh);
+                    sp.render();
+                    // presently finished curves always remain at the stage, so we can easily retain them
+                    if (sp.mesh.parent !== this.pixi.stage)
+                        this.pixi.stage.addChild(sp.mesh);
                 }
             }
-            // current drawn line
+            // current drawn lines
             for (var _b = 0, _c = Object.values(this.inputs); _b < _c.length; _b++) {
                 var input = _c[_b];
                 input.spline.rebuild();
-                if (input.spline.isRenderable())
-                    this.pixi.stage.addChild(input.spline.mesh);
+                if (input.spline.isRenderable()) {
+                    input.spline.render();
+                    this.inputContainer.addChild(input.spline.mesh);
+                }
             }
         }
         // draw ui
@@ -436,6 +437,7 @@ var SplineCoeff = /** @class */ (function () {
 }());
 var NormalSpline = /** @class */ (function () {
     function NormalSpline(pts) {
+        // normalize timestamps to [0..1]
         this.points = pts.map(function (pt) { return new Point(pt.x, pt.y, (pt.t - pts[0].t) / (pts[pts.length - 1].t - pts[0].t)); });
         this.kx = Array(pts.length - 1);
         this.ky = Array(pts.length - 1);
@@ -472,7 +474,8 @@ var NormalSpline = /** @class */ (function () {
         var t_first = this.points[0].t;
         var t_last = this.points[this.points.length - 1].t;
         // interpolate between t_offset and t_offset + t_length
-        var NUM_STEPS = 20 + this.points.length * 4;
+        // Limit the the final result to no more that 16k vertices (the curve will lose detail)
+        var NUM_STEPS = Math.min(20 + this.points.length * 4, 8190);
         // clamp t_offset so that interpolated region is range
         t_offset = Math.max(t_first, Math.min(t_last - t_length, t_offset));
         var result = Array(NUM_STEPS + 1);
@@ -542,7 +545,58 @@ var SplineInstance = /** @class */ (function () {
         this.needsRebuild = true;
         this.spStart = 0.;
         this.spEnd = 1.;
+        this.timeIndices = [];
     }
+    SplineInstance.prototype.pointsToMeshStrip = function (pts, spline_time) {
+        var _this = this;
+        var width = 2.0 * (devicePixelRatio || 1.0);
+        // using new Array in theory preallocates an array to a certain size
+        // This has the inconveniency that we cannot "push" to array but must
+        // use precise indices
+        // Every vertex and UV has "x1, y1, x2, y2" numbers per every point
+        var verts = new Array(pts.length * 4);
+        var uvs = new Array(pts.length * 4);
+        this.timeIndices = new Array(pts.length);
+        if (pts.length == 1) {
+            // draw a square
+            verts = [
+                pts[0].x - width, pts[0].y - width,
+                pts[0].x - width, pts[0].y + width,
+                pts[0].x + width, pts[0].y - width,
+                pts[0].x + width, pts[0].y + width,
+            ];
+            uvs = [0, 0, 0, 1, 1, 0, 1, 1];
+            this.timeIndices = [0, 1];
+        }
+        else {
+            // Build a uniform-width "tunnel" along the line
+            // Find tangents at segment points
+            var tangents = pts.map(function (pt, index) {
+                if (index == 0)
+                    return Math.atan2(pts[index + 1].y - pt.y, pts[index + 1].x - pt.x);
+                else if (index == pts.length - 1)
+                    return Math.atan2(pt.y - pts[index - 1].y, pt.x - pts[index - 1].x);
+                // average the two -- better to use weighted average by length though
+                return 0.5 * (Math.atan2(pts[index + 1].y - pt.y, pts[index + 1].x - pt.x) +
+                    Math.atan2(pt.y - pts[index - 1].y, pt.x - pts[index - 1].x));
+            });
+            // create tunnel vertices (a pair of them per every line point)
+            lineSegment(pts, tangents, verts);
+            pts.forEach(function (pt, index) {
+                var uv_x = index / (pts.length - 1);
+                var uv_y = pt.t / spline_time;
+                uvs[index * 4 + 0] = uv_x;
+                uvs[index * 4 + 1] = uv_y;
+                uvs[index * 4 + 2] = uv_x;
+                uvs[index * 4 + 3] = uv_y;
+                _this.timeIndices[index] = uv_y;
+            });
+        }
+        var geom = new pixi_js__WEBPACK_IMPORTED_MODULE_0__.Geometry();
+        geom.addAttribute('aVertexPosition', verts);
+        geom.addAttribute('aUv', uvs);
+        return geom;
+    };
     SplineInstance.prototype.updateSpline = function (spline) {
         this.spline = spline;
         this.needsRebuild = true;
@@ -564,14 +618,54 @@ var SplineInstance = /** @class */ (function () {
     SplineInstance.prototype.setSplinePart = function (fStart, fEnd) {
         this.spStart = fStart;
         this.spEnd = fEnd;
-        this.needsRebuild = true;
     };
     SplineInstance.prototype.rebuild = function () {
         if (!this.needsRebuild || !this.spline)
             return;
         if (this.mesh)
             this.mesh.destroy();
-        this.mesh = new pixi_js__WEBPACK_IMPORTED_MODULE_0__.Mesh(pointsToMeshStrip(this.spline.subInterval(this.spStart, this.spEnd), this.spline.time), this.shader, pixi_js__WEBPACK_IMPORTED_MODULE_0__.State.for2d(), pixi_js__WEBPACK_IMPORTED_MODULE_0__.DRAW_MODES.TRIANGLE_STRIP);
+        this.mesh = new pixi_js__WEBPACK_IMPORTED_MODULE_0__.Mesh(this.pointsToMeshStrip(this.spline.subInterval(0., 1.), this.spline.time), this.shader, pixi_js__WEBPACK_IMPORTED_MODULE_0__.State.for2d(), pixi_js__WEBPACK_IMPORTED_MODULE_0__.DRAW_MODES.TRIANGLE_STRIP);
+        this.needsRebuild = false;
+    };
+    /// Find vertex index at a specified time point
+    SplineInstance.prototype.findTimeIndex = function (time) {
+        if (time <= 0)
+            return 0;
+        else if (time >= 1.)
+            return this.timeIndices.length - 1;
+        // we start from an approximate point, which is much faster than plain linear search
+        var index = Math.round(time * this.timeIndices.length);
+        while (index > 0 && this.timeIndices[index] >= time) {
+            index--;
+        }
+        if (index == 0 && this.timeIndices[index] >= time) {
+            return index;
+        }
+        while (index < this.timeIndices.length - 1 && this.timeIndices[index] < time) {
+            index++;
+        }
+        return index;
+    };
+    SplineInstance.prototype.render = function () {
+        if (!this.mesh)
+            return;
+        // convert start and end times to vertex offsets
+        var vxStart = 0;
+        var vxEnd = -1; // special value for "all"
+        if (this.timeIndices) {
+            vxStart = this.findTimeIndex(this.spStart);
+            vxEnd = this.findTimeIndex(this.spEnd);
+        }
+        if (vxStart == -1) {
+            // there was no start index found - it is likely beyond end, and so nothing should be drawn
+            return;
+        }
+        if (vxStart == vxEnd) {
+            // same point - do not draw anything
+            return;
+        }
+        this.mesh.start = vxStart * 2;
+        this.mesh.size = (vxEnd - vxStart) * 2;
     };
     SplineInstance.prototype.isRenderable = function () {
         return (this.spline !== undefined);
@@ -590,51 +684,11 @@ function lineSegment(ends, tangents, verts) {
     ends.forEach(function (pt, index) {
         var sink = Math.sin(-tangents[index]);
         var cosk = Math.cos(-tangents[index]);
-        verts.push(pt.x - width * sink, pt.y - width * cosk, pt.x + width * sink, pt.y + width * cosk);
+        verts[index * 4 + 0] = pt.x - width * sink;
+        verts[index * 4 + 1] = pt.y - width * cosk;
+        verts[index * 4 + 2] = pt.x + width * sink;
+        verts[index * 4 + 3] = pt.y + width * cosk;
     });
-}
-function pointsToMeshStrip(pts, spline_time) {
-    var width = 1.0;
-    var verts = [];
-    var uvs = [];
-    var indices = [];
-    if (pts.length == 1) {
-        // draw a square
-        verts = [
-            pts[0].x - width, pts[0].y - width,
-            pts[0].x - width, pts[0].y + width,
-            pts[0].x + width, pts[0].y - width,
-            pts[0].x + width, pts[0].y + width,
-        ];
-        uvs = [0, 0, 0, 1, 1, 0, 1, 1];
-        indices = [0, 1, 2, 3];
-    }
-    else {
-        // Build a uniform-width "tunnel" along the line
-        // Find tangents at segment points
-        var tangents = pts.map(function (pt, index) {
-            if (index == 0)
-                return Math.atan2(pts[index + 1].y - pt.y, pts[index + 1].x - pt.x);
-            else if (index == pts.length - 1)
-                return Math.atan2(pt.y - pts[index - 1].y, pt.x - pts[index - 1].x);
-            // average the two -- better to use weighted average by length though
-            return 0.5 * (Math.atan2(pts[index + 1].y - pt.y, pts[index + 1].x - pt.x) +
-                Math.atan2(pt.y - pts[index - 1].y, pt.x - pts[index - 1].x));
-        });
-        // create tunnel vertices (a pair of them per every line point)
-        lineSegment(pts, tangents, verts);
-        pts.forEach(function (pt, index) {
-            var uv_x = index / (pts.length - 1);
-            var uv_y = pt.t / spline_time;
-            uvs.push(uv_x, uv_y, uv_x, uv_y);
-            indices.push(index * 2, index * 2 + 1);
-        });
-    }
-    var geom = new pixi_js__WEBPACK_IMPORTED_MODULE_0__.Geometry();
-    geom.addAttribute('aVertexPosition', verts);
-    geom.addAttribute('aUv', uvs);
-    geom.addIndex(indices);
-    return geom;
 }
 
 
