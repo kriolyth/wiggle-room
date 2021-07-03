@@ -68,6 +68,7 @@ class NormalSpline implements Spline {
     time: number;
 
     constructor(pts: Point[]) {
+        // normalize timestamps to [0..1]
         this.points = pts.map(pt => new Point(pt.x, pt.y, (pt.t - pts[0].t) / (pts[pts.length - 1].t - pts[0].t)))
         this.kx = Array(pts.length - 1);
         this.ky = Array(pts.length - 1);
@@ -118,7 +119,8 @@ class NormalSpline implements Spline {
         const t_last = this.points[this.points.length - 1].t
 
         // interpolate between t_offset and t_offset + t_length
-        const NUM_STEPS = 20 + this.points.length * 4;
+        // Limit the the final result to no more that 16k vertices (the curve will lose detail)
+        const NUM_STEPS = Math.min(20 + this.points.length * 4, 8190);
         // clamp t_offset so that interpolated region is range
         t_offset = Math.max(t_first, Math.min(t_last - t_length, t_offset))
 

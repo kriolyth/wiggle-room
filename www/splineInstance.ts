@@ -32,10 +32,13 @@ class SplineInstance {
     spStart: number;
     spEnd: number;
 
+    // maps vertex index to its time - this helps with drawing only a part of the line
+    timeIndices: number[];
+
     // changes to spline do not immediately cause mesh to be rebuilt, because
     // renderer may still reference it. Instead, this flag  is set,
     // and rebuild is called from animation loop
-    needsRebuild: boolean;  
+    needsRebuild: boolean;
 
     constructor(program: PIXI.Program, spline?: Spline, uniforms?: SplineUniforms) {
         this.spline = spline;
@@ -46,6 +49,59 @@ class SplineInstance {
         this.needsRebuild = true
         this.spStart = 0.
         this.spEnd = 1.
+        this.timeIndices = []
+    }
+
+    private pointsToMeshStrip(pts: Point[], spline_time: number): PIXI.Geometry {
+        const width = 2.0 * (devicePixelRatio || 1.0);
+
+        // using new Array in theory preallocates an array to a certain size
+        // This has the inconveniency that we cannot "push" to array but must
+        // use precise indices
+        // Every vertex and UV has "x1, y1, x2, y2" numbers per every point
+        let verts: number[] = new Array(pts.length * 4);
+        let uvs: number[] = new Array(pts.length * 4);
+        this.timeIndices = new Array(pts.length);
+
+        if (pts.length == 1) {
+            // draw a square
+            verts = [
+                pts[0].x - width, pts[0].y - width,
+                pts[0].x - width, pts[0].y + width,
+                pts[0].x + width, pts[0].y - width,
+                pts[0].x + width, pts[0].y + width,
+            ]
+            uvs = [0, 0, 0, 1, 1, 0, 1, 1]
+            this.timeIndices = [0, 1];
+        } else {
+            // Build a uniform-width "tunnel" along the line
+            // Find tangents at segment points
+            const tangents = pts.map((pt, index) => {
+                if (index == 0) return Math.atan2(pts[index + 1].y - pt.y, pts[index + 1].x - pt.x)
+                else if (index == pts.length - 1) return Math.atan2(pt.y - pts[index - 1].y, pt.x - pts[index - 1].x)
+                // average the two -- better to use weighted average by length though
+                return 0.5 * (
+                    Math.atan2(pts[index + 1].y - pt.y, pts[index + 1].x - pt.x) +
+                    Math.atan2(pt.y - pts[index - 1].y, pt.x - pts[index - 1].x))
+            })
+            // create tunnel vertices (a pair of them per every line point)
+            lineSegment(pts, tangents, verts)
+            pts.forEach((pt, index) => {
+                const uv_x = index / (pts.length - 1)
+                const uv_y = pt.t / spline_time
+                uvs[index * 4 + 0] = uv_x
+                uvs[index * 4 + 1] = uv_y
+                uvs[index * 4 + 2] = uv_x
+                uvs[index * 4 + 3] = uv_y
+                this.timeIndices[index] = uv_y
+            })
+        }
+
+        const geom = new PIXI.Geometry()
+        geom.addAttribute('aVertexPosition', verts)
+        geom.addAttribute('aUv', uvs)
+
+        return geom
     }
 
     updateSpline(spline: Spline) {
@@ -74,7 +130,6 @@ class SplineInstance {
     setSplinePart(fStart: number, fEnd: number) {
         this.spStart = fStart
         this.spEnd = fEnd
-        this.needsRebuild = true
     }
 
     rebuild() {
@@ -84,10 +139,54 @@ class SplineInstance {
         if (this.mesh)
             this.mesh.destroy()
         this.mesh = new PIXI.Mesh(
-            pointsToMeshStrip(this.spline.subInterval(this.spStart, this.spEnd), this.spline.time),
+            this.pointsToMeshStrip(this.spline.subInterval(0., 1.), this.spline.time),
             this.shader,
             PIXI.State.for2d(),
             PIXI.DRAW_MODES.TRIANGLE_STRIP)
+
+        this.needsRebuild = false
+    }
+
+    /// Find vertex index at a specified time point
+    private findTimeIndex(time: number): number {
+        if (time <= 0) return 0;
+        else if (time >= 1.) return this.timeIndices.length - 1;
+
+        // we start from an approximate point, which is much faster than plain linear search
+        let index = Math.round(time * this.timeIndices.length)
+        while (index > 0 && this.timeIndices[index] >= time) {
+            index--
+        }
+        if (index == 0 && this.timeIndices[index] >= time) {
+            return index
+        }
+        while (index < this.timeIndices.length-1 && this.timeIndices[index] < time) {
+            index++
+        }
+        return index
+    }
+
+    render() {
+        if (!this.mesh)
+            return
+        // convert start and end times to vertex offsets
+        let vxStart: number = 0
+        let vxEnd: number = -1  // special value for "all"
+        if (this.timeIndices) {
+            vxStart = this.findTimeIndex(this.spStart)
+            vxEnd = this.findTimeIndex(this.spEnd)
+        }
+        if (vxStart == -1) {
+            // there was no start index found - it is likely beyond end, and so nothing should be drawn
+            return 
+        }
+        if (vxStart == vxEnd) {
+            // same point - do not draw anything
+            return
+        }
+
+        this.mesh.start = vxStart * 2
+        this.mesh.size = (vxEnd - vxStart) * 2
     }
 
     isRenderable(): boolean {
@@ -110,57 +209,13 @@ function lineSegment(ends: Point[], tangents: number[], verts: number[]) {
     ends.forEach((pt, index) => {
         const sink = Math.sin(-tangents[index])
         const cosk = Math.cos(-tangents[index])
-        verts.push(
-            pt.x - width * sink, pt.y - width * cosk,
-            pt.x + width * sink, pt.y + width * cosk,
-        );
+        verts[index * 4 + 0] = pt.x - width * sink
+        verts[index * 4 + 1] = pt.y - width * cosk
+        verts[index * 4 + 2] = pt.x + width * sink
+        verts[index * 4 + 3] = pt.y + width * cosk
     })
 }
 
-function pointsToMeshStrip(pts: Point[], spline_time: number): PIXI.Geometry {
-    const width = 1.0;
-    let verts: number[] = [];
-    let uvs: number[] = [];
-    let indices: number[] = [];
-    if (pts.length == 1) {
-        // draw a square
-        verts = [
-            pts[0].x - width, pts[0].y - width,
-            pts[0].x - width, pts[0].y + width,
-            pts[0].x + width, pts[0].y - width,
-            pts[0].x + width, pts[0].y + width,
-        ]
-        uvs = [0, 0, 0, 1, 1, 0, 1, 1]
-        indices = [0, 1, 2, 3]
-    } else {
-        // Build a uniform-width "tunnel" along the line
-        // Find tangents at segment points
-        const tangents = pts.map((pt, index) => {
-            if (index == 0) return Math.atan2(pts[index + 1].y - pt.y, pts[index + 1].x - pt.x)
-            else if (index == pts.length - 1) return Math.atan2(pt.y - pts[index - 1].y, pt.x - pts[index - 1].x)
-            // average the two -- better to use weighted average by length though
-            return 0.5 * (
-                Math.atan2(pts[index + 1].y - pt.y, pts[index + 1].x - pt.x) + 
-                Math.atan2(pt.y - pts[index - 1].y, pt.x - pts[index - 1].x))
-        })
-        // create tunnel vertices (a pair of them per every line point)
-        lineSegment(pts, tangents, verts)
-        pts.forEach((pt, index) => {
-            const uv_x = index / (pts.length - 1)
-            const uv_y = pt.t / spline_time
-            uvs.push(uv_x, uv_y, uv_x, uv_y)
-            indices.push(index * 2, index * 2 + 1)
-        })
-
-    }
-
-    const geom = new PIXI.Geometry()
-    geom.addAttribute('aVertexPosition', verts)
-    geom.addAttribute('aUv', uvs)
-    geom.addIndex(indices)
-
-    return geom
-}
 
 
 export { SplineInstance, SplineUniforms }
