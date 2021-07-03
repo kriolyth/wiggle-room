@@ -24,7 +24,8 @@ class App {
     pixi: PIXI.Application;
     lineShader: PIXI.Program;
     splines: SplineInstance[] = [];
-    inputs: { [index: number]: { points: Point[], spline: SplineInstance }} = {}
+    inputs: { [index: number]: { points: Point[], spline: SplineInstance } } = {}
+    inputContainer: PIXI.Container;
 
     lastFrameTime: number;
     simulationTime: number;
@@ -45,12 +46,6 @@ class App {
         this.lastFrameTime = 0;
         this.simulationTime = 0;
 
-        const frag_line_bg_colour = 'vec3(0.1835)'
-        const uniforms = {
-            fCycle: 0.,
-            clStart: [1., 0., 0.],
-            clEnd: [1., 1., 0]
-        }
         this.lineShader = new PIXI.Program(`
 
         precision mediump float;
@@ -80,9 +75,9 @@ class App {
             
             // shade ends by position on chunk ends
             gl_FragColor = vec4(cl, 1.0);
-        }
-    
-    `)
+        }`)
+
+        this.inputContainer = new PIXI.Container()
 
     }
 
@@ -99,6 +94,7 @@ class App {
         // field ui
 
         this.pixi.ticker.add(delta => this.loop(delta));
+        this.pixi.stage.addChild(this.inputContainer)
 
         this.start();
     }
@@ -108,26 +104,31 @@ class App {
         if (this.ready && !this.paused) {
             this.simulationTime += delta / 60.;
             const fCycle = this.simulationTime / config.field.cycleLength - Math.trunc(this.simulationTime / config.field.cycleLength)
-            // clear everything
-            this.pixi.stage.removeChildren()
+            // clear currently drawn lines - they are rebuilt every frame
+            this.inputContainer.removeChildren()
 
             const line_fraction = config.field.lineFraction;
             const interval_start = Math.max(0, fCycle * (1 + line_fraction) - line_fraction)
             const interval_end = Math.min(1., fCycle * (1 + line_fraction))
             for (let sp of this.splines) {
                 sp.setCycle(fCycle)
-                sp.setSplinePart(Math.max(0., interval_start), Math.max(0., interval_end - interval_start))
+                sp.setSplinePart(Math.max(0., interval_start), Math.max(0., interval_end))
                 sp.rebuild()
                 if (sp.isRenderable()) {
-                    this.pixi.stage.addChild(sp.mesh!)
+                    sp.render()
+                    // presently finished curves always remain at the stage, so we can easily retain them
+                    if (sp.mesh!.parent !== this.pixi.stage)
+                        this.pixi.stage.addChild(sp.mesh!)
                 }
             }
 
-            // current drawn line
+            // current drawn lines
             for (let input of Object.values(this.inputs)) {
                 input.spline.rebuild()
-                if (input.spline.isRenderable())
-                    this.pixi.stage.addChild(input.spline.mesh!)
+                if (input.spline.isRenderable()) {
+                    input.spline.render()
+                    this.inputContainer.addChild(input.spline.mesh!)
+                }
             }
 
         }
@@ -177,7 +178,7 @@ class App {
             inputSplineUniforms.clStart = [1., 0., 1.]
             inputSplineUniforms.clEnd = [.8, .9, .9]
             this.inputs[lineIndex] = {
-                points: [], 
+                points: [],
                 spline: new SplineInstance(this.lineShader, undefined, inputSplineUniforms)
             }
         }
