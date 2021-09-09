@@ -1,3 +1,4 @@
+"use strict";
 (self["webpackChunkwiggle_room_html"] = self["webpackChunkwiggle_room_html"] || []).push([["index_ts"],{
 
 /***/ "./app.ts":
@@ -6,7 +7,6 @@
   \****************/
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
-"use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "App": () => (/* binding */ App),
@@ -43,11 +43,11 @@ var App = /** @class */ (function () {
         this.splines = [];
         this.inputs = {};
         this.pixi = new pixi_js__WEBPACK_IMPORTED_MODULE_3__.Application({
-            backgroundColor: _config__WEBPACK_IMPORTED_MODULE_0__.default.colours.background,
+            backgroundColor: _config__WEBPACK_IMPORTED_MODULE_0__["default"].colours.background,
             antialias: true,
             resizeTo: container
         });
-        this.pixi.ticker.maxFPS = _config__WEBPACK_IMPORTED_MODULE_0__.default.display.maxfps;
+        this.pixi.ticker.maxFPS = _config__WEBPACK_IMPORTED_MODULE_0__["default"].display.maxfps;
         this.ready = false;
         this.paused = false;
         this.lastFrameTime = 0;
@@ -73,10 +73,10 @@ var App = /** @class */ (function () {
     App.prototype.loop = function (delta) {
         if (this.ready && !this.paused) {
             this.simulationTime += delta / 60.;
-            var fCycle = this.simulationTime / _config__WEBPACK_IMPORTED_MODULE_0__.default.field.cycleLength - Math.trunc(this.simulationTime / _config__WEBPACK_IMPORTED_MODULE_0__.default.field.cycleLength);
+            var fCycle = this.simulationTime / _config__WEBPACK_IMPORTED_MODULE_0__["default"].field.cycleLength - Math.trunc(this.simulationTime / _config__WEBPACK_IMPORTED_MODULE_0__["default"].field.cycleLength);
             // clear currently drawn lines - they are rebuilt every frame
             this.inputContainer.removeChildren();
-            var line_fraction = _config__WEBPACK_IMPORTED_MODULE_0__.default.field.lineFraction;
+            var line_fraction = _config__WEBPACK_IMPORTED_MODULE_0__["default"].field.lineFraction;
             var interval_start = Math.max(0, fCycle * (1 + line_fraction) - line_fraction);
             var interval_end = Math.min(1., fCycle * (1 + line_fraction));
             for (var _i = 0, _a = this.splines; _i < _a.length; _i++) {
@@ -197,7 +197,6 @@ function createApp(container) {
   \***************************/
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
-"use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
@@ -218,7 +217,6 @@ __webpack_require__.r(__webpack_exports__);
   \***************************/
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
-"use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
@@ -236,7 +234,6 @@ __webpack_require__.r(__webpack_exports__);
   \*************************/
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
-"use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
@@ -255,7 +252,6 @@ __webpack_require__.r(__webpack_exports__);
   \*************************/
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
-"use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
@@ -281,7 +277,7 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
-/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = ({ colours: _colours__WEBPACK_IMPORTED_MODULE_0__.default, display: _display__WEBPACK_IMPORTED_MODULE_1__.default, field: _field__WEBPACK_IMPORTED_MODULE_2__.default });
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = ({ colours: _colours__WEBPACK_IMPORTED_MODULE_0__["default"], display: _display__WEBPACK_IMPORTED_MODULE_1__["default"], field: _field__WEBPACK_IMPORTED_MODULE_2__["default"] });
 
 
 /***/ }),
@@ -292,7 +288,6 @@ __webpack_require__.r(__webpack_exports__);
   \******************/
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
-"use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _app__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./app */ "./app.ts");
 /*
@@ -389,7 +384,6 @@ else
   \*******************/
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
-"use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "Point": () => (/* binding */ Point),
@@ -502,7 +496,6 @@ var NormalSpline = /** @class */ (function () {
   \***************************/
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
-"use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "SplineInstance": () => (/* binding */ SplineInstance),
